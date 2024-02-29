@@ -70,7 +70,7 @@ func init() {
 	logLevel = zap.NewAtomicLevel()
 	logLevel.SetLevel(zapcore.DebugLevel)
 	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.Lock(localWs), logLevel)
-	logger = zap.New(core, zap.AddCaller())
+	logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 }
 
 func SetLogLevel(level zapcore.Level) {
@@ -104,4 +104,8 @@ func Warn(msg string, fields ...zap.Field) {
 
 func Error(msg string, fields ...zap.Field) {
 	logger.Error(msg, fields...)
+}
+
+func Fatal(msg string, fields ...zap.Field) {
+	logger.Fatal(msg, fields...)
 }
