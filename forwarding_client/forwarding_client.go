@@ -6,7 +6,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/manx98/wss_port_forwarding/utils"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -21,7 +20,6 @@ type ForwardingHandler struct {
 	tcpConn   net.Conn
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
-	lock      sync.Mutex
 	isClient  bool
 	writeChan chan *message
 }
@@ -118,12 +116,6 @@ func (c *ForwardingHandler) Handler() error {
 	return context.Cause(c.ctx)
 }
 
-func (c *ForwardingHandler) PingHandler(appData string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.wsConn.WriteMessage(websocket.PongMessage, nil)
-}
-
 func (c *ForwardingHandler) PongHandler(appData string) error {
 	return nil
 }
@@ -136,7 +128,6 @@ func NewForwardingHandler(key []byte, wsConn *websocket.Conn, tcpConn net.Conn, 
 		isClient:  isClient,
 		writeChan: make(chan *message),
 	}
-	h.wsConn.SetPongHandler(h.PingHandler)
 	h.wsConn.SetPongHandler(h.PongHandler)
 	h.ctx, h.cancel = context.WithCancelCause(ctx)
 	return h
