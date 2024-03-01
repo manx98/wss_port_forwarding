@@ -9,18 +9,10 @@ import (
 	"net"
 )
 
-func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig, conn *websocket.Conn, local string) (*forwarding_client.ForwardingHandler, error) {
-	dial, err := net.Dial("tcp", local)
+func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig, wsClient *websocket.Conn, local string) (*forwarding_client.ForwardingHandler, error) {
+	tcpConn, err := net.Dial("tcp", local)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial local: %w", err)
+		return nil, fmt.Errorf("failed to tcpConn local: %w", err)
 	}
-	client := &forwarding_client.ForwardingHandler{
-		WsClient: conn,
-		Conn:     dial,
-		Key:      server.Password,
-	}
-	conn.SetPongHandler(client.PingHandler)
-	conn.SetPongHandler(client.PongHandler)
-	client.Ctx, client.Cancel = context.WithCancelCause(ctx)
-	return client, nil
+	return forwarding_client.NewForwardingHandler(server.Password, wsClient, tcpConn, ctx, false), nil
 }

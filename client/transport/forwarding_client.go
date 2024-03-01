@@ -20,7 +20,7 @@ func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt remote info: %w", err)
 	}
-	c, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), http.Header{
+	wsClient, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), http.Header{
 		"Cookie": {
 			fmt.Sprintf("%s=%s", transport.RemoteKey, base64.StdEncoding.EncodeToString(remoteData)),
 			fmt.Sprintf("%s=%s", transport.RemoteMD5, utils.MD5([]byte(remote))),
@@ -29,14 +29,5 @@ func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial server: %w", err)
 	}
-	client := &forwarding_client.ForwardingHandler{
-		Key:      server.Password,
-		WsClient: c,
-		Conn:     conn,
-		IsClient: true,
-	}
-	c.SetPongHandler(client.PingHandler)
-	c.SetPongHandler(client.PongHandler)
-	client.Ctx, client.Cancel = context.WithCancelCause(ctx)
-	return client, nil
+	return forwarding_client.NewForwardingHandler(server.Password, wsClient, conn, ctx, true), nil
 }

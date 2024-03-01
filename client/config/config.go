@@ -8,6 +8,7 @@ import (
 )
 
 type Transport struct {
+	Name   string `json:"name"`
 	Remote string `json:"remote"`
 	Local  string `json:"local"`
 }
@@ -32,6 +33,7 @@ func LoadConfig(path string) *ClientConfig {
 			continue
 		}
 		transport := &Transport{
+			Name:   name,
 			Remote: sec.Key("remote").String(),
 			Local:  sec.Key("local").String(),
 		}
