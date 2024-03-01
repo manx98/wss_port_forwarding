@@ -21,8 +21,10 @@ func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig
 		return nil, fmt.Errorf("failed to encrypt remote info: %w", err)
 	}
 	c, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), http.Header{
-		transport.RemoteKey: []string{base64.StdEncoding.EncodeToString(remoteData)},
-		transport.RemoteMD5: []string{utils.MD5([]byte(remote))},
+		"Cookie": {
+			fmt.Sprintf("%s=%s", transport.RemoteKey, base64.StdEncoding.EncodeToString(remoteData)),
+			fmt.Sprintf("%s=%s", transport.RemoteMD5, utils.MD5([]byte(remote))),
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial server: %w", err)
