@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/manx98/wss_port_forwarding/utils"
 	"net"
 	"sync"
 	"time"
 )
 
 type ForwardingHandler struct {
+	Key      []byte
 	WsClient *websocket.Conn
 	Conn     net.Conn
 	Ctx      context.Context
@@ -24,7 +26,11 @@ func (c *ForwardingHandler) handleWrite() error {
 		if err != nil {
 			return fmt.Errorf("failed to read data from server: %w", err)
 		}
-		_, err = c.Conn.Write(p)
+		data, err := utils.DecryptAES(p, c.Key)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt data from remote: %w", err)
+		}
+		_, err = c.Conn.Write(data)
 		if err != nil {
 			return fmt.Errorf("failed to write data to local connect: %w", err)
 		}
@@ -39,7 +45,11 @@ func (c *ForwardingHandler) handleRead() error {
 		if err != nil {
 			return fmt.Errorf("failed to read data from local connect: %w", err)
 		}
-		err = c.WsClient.WriteMessage(websocket.BinaryMessage, buf[:n])
+		data, err := utils.EncryptAES(buf[:n], c.Key)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt data from local: %w", err)
+		}
+		err = c.WsClient.WriteMessage(websocket.BinaryMessage, data)
 		if err != nil {
 			return fmt.Errorf("failed to write data to server: %w", err)
 		}

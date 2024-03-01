@@ -17,6 +17,7 @@ func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig
 	client := &forwarding_client.ForwardingHandler{
 		WsClient: conn,
 		Conn:     dial,
+		Key:      server.Password,
 	}
 	conn.SetPongHandler(client.PingHandler)
 	conn.SetPongHandler(client.PongHandler)

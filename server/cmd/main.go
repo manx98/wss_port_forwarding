@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	configFile := flag.String("c", "config.ini", "config file")
+	configFile := flag.String("c", "server_config.ini", "config file")
 	flag.Parse()
 	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	err := transport.Run(ctx, config.LoadConfig(*configFile))

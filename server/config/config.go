@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/manx98/wss_port_forwarding/logger"
+	"github.com/manx98/wss_port_forwarding/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/ini.v1"
@@ -10,16 +11,14 @@ import (
 type ServerConfig struct {
 	Bind     string `json:"bind"`
 	Path     string `json:"path"`
-	User     string `json:"user"`
-	Password string `json:"password"`
+	Password []byte
 }
 
 func LoadServerConfig(section *ini.Section) *ServerConfig {
 	cfg := &ServerConfig{
 		Bind:     section.Key("bind").String(),
 		Path:     section.Key("path").String(),
-		User:     section.Key("user").String(),
-		Password: section.Key("password").String(),
+		Password: utils.DeriveKey(section.Key("password").String()),
 	}
 	if cfg.Bind == "" {
 		logger.Fatal("server config bind can't be empty!")

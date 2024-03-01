@@ -2,17 +2,18 @@ package transport
 
 import (
 	"context"
+	"encoding/base64"
 	"github.com/gorilla/websocket"
 	"github.com/manx98/wss_port_forwarding/logger"
 	"github.com/manx98/wss_port_forwarding/server/config"
+	"github.com/manx98/wss_port_forwarding/utils"
 	"go.uber.org/zap"
 	"net/http"
 )
 
 const (
-	UserKey     = "user"
-	PasswordKey = "password"
-	RemoteKey   = "remote"
+	RemoteKey = "remote"
+	RemoteMD5 = "remote_md5"
 )
 
 var upgrader = websocket.Upgrader{
@@ -34,12 +35,29 @@ func Run(parent context.Context, server *config.ServerConfig) error {
 }
 
 func handleWebSocket(ctx context.Context, server *config.ServerConfig, w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get(UserKey) != server.User && r.Header.Get(PasswordKey) != server.Password {
+	local := r.Header.Get(RemoteKey)
+	remoteMd5 := r.Header.Get(RemoteMD5)
+	localData, err := base64.StdEncoding.DecodeString(local)
+	if err != nil {
+		logger.Error("failed to decode remote", zap.String("request_remote", r.RemoteAddr), zap.String("local", local), zap.Error(err))
+		w.WriteHeader(400)
+		return
+	}
+	localData, err = utils.DecryptAES(localData, server.Password)
+	if err != nil {
+		logger.Error("failed to decrypt remote", zap.String("request_remote", r.RemoteAddr), zap.String("local", local), zap.Error(err))
+		w.WriteHeader(400)
+		return
+	}
+	realLocalMd5 := utils.MD5(localData)
+	if realLocalMd5 != remoteMd5 {
+		logger.Debug("request header remote_md5 is valid", zap.String("request_remote", r.RemoteAddr), zap.String("except_md5", realLocalMd5), zap.String("real_md5", remoteMd5))
 		w.WriteHeader(403)
 		return
 	}
-	local := r.Header.Get(RemoteKey)
+	local = string(localData)
 	if local == "" {
+		logger.Error("failed to remote header is empty!", zap.String("request_remote", r.RemoteAddr), zap.String("local", local))
 		w.WriteHeader(400)
 		return
 	}
