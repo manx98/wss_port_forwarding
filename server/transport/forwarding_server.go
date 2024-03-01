@@ -9,10 +9,10 @@ import (
 	"net"
 )
 
-func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig, wsClient *websocket.Conn, local string) (*forwarding_client.ForwardingHandler, error) {
+func NewForwardingClient(ctx context.Context, server *server_config.ServerConfig, wsConn *websocket.Conn, local string) (*forwarding_client.ForwardingHandler, error) {
 	tcpConn, err := net.Dial("tcp", local)
 	if err != nil {
 		return nil, fmt.Errorf("failed to tcpConn local: %w", err)
 	}
-	return forwarding_client.NewForwardingHandler(server.Password, wsClient, tcpConn, ctx, false), nil
+	return forwarding_client.NewForwardingHandler(server.Password, wsConn, tcpConn, ctx, false), nil
 }

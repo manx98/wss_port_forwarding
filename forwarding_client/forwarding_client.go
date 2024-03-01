@@ -17,8 +17,8 @@ type message struct {
 
 type ForwardingHandler struct {
 	key       []byte
-	wsClient  *websocket.Conn
-	conn      net.Conn
+	wsConn    *websocket.Conn
+	tcpConn   net.Conn
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
 	lock      sync.Mutex
@@ -28,7 +28,7 @@ type ForwardingHandler struct {
 
 func (c *ForwardingHandler) handleWrite() error {
 	for c.ctx.Err() == nil {
-		_, p, err := c.wsClient.ReadMessage()
+		_, p, err := c.wsConn.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read data from server: %w", err)
 		}
@@ -36,7 +36,7 @@ func (c *ForwardingHandler) handleWrite() error {
 		if err != nil {
 			return fmt.Errorf("failed to decrypt data from remote: %w", err)
 		}
-		_, err = c.conn.Write(data)
+		_, err = c.tcpConn.Write(data)
 		if err != nil {
 			return fmt.Errorf("failed to write data to local connect: %w", err)
 		}
@@ -46,13 +46,26 @@ func (c *ForwardingHandler) handleWrite() error {
 
 func (c *ForwardingHandler) handleWriteToWs() error {
 	for c.ctx.Err() == nil {
-		select {
-		case msg := <-c.writeChan:
+		var msg *message
+		if c.isClient {
+			select {
+			case <-time.After(time.Second * 10):
+				msg = &message{websocket.PingMessage, nil}
+			case msg = <-c.writeChan:
+			case <-c.ctx.Done():
+			}
+		} else {
+			select {
+			case msg = <-c.writeChan:
+			case <-c.ctx.Done():
+			}
+		}
+		if msg != nil {
 			data, err := utils.EncryptAES(msg.Data, c.key)
 			if err != nil {
 				return fmt.Errorf("failed to encrypt data from local: %w", err)
 			}
-			err = c.wsClient.WriteMessage(msg.Type, data)
+			err = c.wsConn.WriteMessage(msg.Type, data)
 			if err != nil {
 				return fmt.Errorf("failed to write data to server: %w", err)
 			}
@@ -61,7 +74,7 @@ func (c *ForwardingHandler) handleWriteToWs() error {
 	return context.Cause(c.ctx)
 }
 
-func (c *ForwardingHandler) handleRead() error {
+func (c *ForwardingHandler) handleTcpRead() error {
 	var buf []byte
 	buf1 := make([]byte, 16*1024)
 	buf2 := make([]byte, 16*1024)
@@ -73,7 +86,7 @@ func (c *ForwardingHandler) handleRead() error {
 		} else {
 			buf = buf2
 		}
-		n, err := c.conn.Read(buf)
+		n, err := c.tcpConn.Read(buf)
 		if err != nil {
 			return fmt.Errorf("failed to read data from local connect: %w", err)
 		}
@@ -96,52 +109,35 @@ func (c *ForwardingHandler) Handler() error {
 		c.cancel(err)
 	}()
 	go func() {
-		err := c.handleRead()
+		err := c.handleTcpRead()
 		c.cancel(err)
 	}()
-	if c.isClient {
-		go c.intervalPing()
-	}
 	<-c.ctx.Done()
-	c.wsClient.Close()
-	c.conn.Close()
+	c.wsConn.Close()
+	c.tcpConn.Close()
 	return context.Cause(c.ctx)
 }
 
 func (c *ForwardingHandler) PingHandler(appData string) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	return c.wsClient.WriteMessage(websocket.PongMessage, nil)
+	return c.wsConn.WriteMessage(websocket.PongMessage, nil)
 }
 
 func (c *ForwardingHandler) PongHandler(appData string) error {
 	return nil
 }
 
-func (c *ForwardingHandler) intervalPing() {
-	for c.ctx.Err() == nil {
-		select {
-		case <-time.After(time.Second * 10):
-			select {
-			case c.writeChan <- &message{websocket.PingMessage, nil}:
-			case <-c.ctx.Done():
-			}
-		case <-c.ctx.Done():
-		}
-	}
-	return
-}
-
-func NewForwardingHandler(key []byte, wsClient *websocket.Conn, tcpConn net.Conn, ctx context.Context, isClient bool) *ForwardingHandler {
+func NewForwardingHandler(key []byte, wsConn *websocket.Conn, tcpConn net.Conn, ctx context.Context, isClient bool) *ForwardingHandler {
 	h := &ForwardingHandler{
 		key:       key,
-		wsClient:  wsClient,
-		conn:      tcpConn,
+		wsConn:    wsConn,
+		tcpConn:   tcpConn,
 		isClient:  isClient,
 		writeChan: make(chan *message),
 	}
-	h.wsClient.SetPongHandler(h.PingHandler)
-	h.wsClient.SetPongHandler(h.PongHandler)
+	h.wsConn.SetPongHandler(h.PingHandler)
+	h.wsConn.SetPongHandler(h.PongHandler)
 	h.ctx, h.cancel = context.WithCancelCause(ctx)
 	return h
 }
