@@ -6,6 +6,7 @@ import (
 	"github.com/manx98/wss_port_forwarding/client/config"
 	"github.com/manx98/wss_port_forwarding/logger"
 	server_config "github.com/manx98/wss_port_forwarding/server/config"
+	"github.com/manx98/wss_port_forwarding/utils"
 	"go.uber.org/zap"
 	"net"
 	"sync"
@@ -30,7 +31,7 @@ func Run(parent context.Context, cfg *config.ClientConfig) error {
 
 func runTCPListener(parent context.Context, server *server_config.ServerConfig, transport *config.Transport) error {
 	logger.Debug("server tcp connect", zap.Any("transport", transport))
-	listen, err := net.Listen("tcp", transport.Local)
+	listen, err := utils.HandlerListen(transport.Local)
 	if err != nil {
 		return fmt.Errorf("failed to listen %s: %w", transport.Local, err)
 	}
